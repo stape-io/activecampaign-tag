@@ -249,7 +249,8 @@ const isDebug = containerVersion.debugMode;
 
 
 if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContactTrackEvent') {
-  let url = data.apiUrl + '/api/3/contact/sync';
+  let url = 'https://' + encodeUriComponent(data.apiUrl.replace('http://', '').replace('https://', '')) + '/api/3/contact/sync';
+
   let bodyData = {
     "contact": {
       "email": data.email,
