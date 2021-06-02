@@ -1,10 +1,12 @@
 # ActiveCampaign tag for Google Tag Manager Server Side
 
-ActiveCampaign tag for the Google Tag Manager server container allows you to completely integrate your websites and ActiveCampaign. 
-The setup is done inside the Google Tag Manager server container interface. 
+ActiveCampaign tag for the Google Tag Manager server container allows you to integrate your websites with the ActiveCampaign.
 This tag will communicate with ActiveCampaign API and send event and user data to your ActiveCampaign account.
 
-Tag allows to:
+The setup is done inside the Google Tag Manager server container interface. 
+
+
+**Tag allows to:**
 
 - Track event
 - Create or update contact
@@ -12,7 +14,7 @@ Tag allows to:
 
 ## How to use ActiveCampaign tag for Google Tag Manager Server container
 
-- [How to integrate ActiveCampaign with the website using Google Tag Manager Server container.](https://gtm-server.com/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container/)
+- [How to integrate ActiveCampaign with the website using Google Tag Manager Server container](https://gtm-server.com/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container/)
 
 ## Open Source
 
