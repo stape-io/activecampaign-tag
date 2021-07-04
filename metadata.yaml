@@ -1,5 +1,7 @@
 homepage: "https://stape.io/"
 versions:
+  - sha: 332fa1ea32218e00074d4dd0a446fab0d90079ce
+    changeNotes: Update for Stape.
   - sha: 40384621fd0350404d9540cf31f258e2a4bf939a
     changeNotes: Fix issue with url encoding.
   - sha: dd3c8d926cf22f5d4bd9c877952cf3b21e84ec59
