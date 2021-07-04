@@ -1,4 +1,4 @@
-homepage: "https://gtm-server.com/"
+homepage: "https://stape.io/"
 versions:
   - sha: 40384621fd0350404d9540cf31f258e2a4bf939a
     changeNotes: Fix issue with url encoding.

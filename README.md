@@ -14,8 +14,8 @@ The setup is done inside the Google Tag Manager server container interface.
 
 ## How to use ActiveCampaign tag for Google Tag Manager Server container
 
-- [How to integrate ActiveCampaign with the website using Google Tag Manager Server container](https://gtm-server.com/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container/)
+- [How to integrate ActiveCampaign with the website using Google Tag Manager Server container](https://stape.io/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container/)
 
 ## Open Source
 
-ActiveCampaign Tag for GTM Server Side is developed and maintained by [GTM Server Team](https://gtm-server.com/) under the Apache 2.0 license.
+ActiveCampaign Tag for GTM Server Side is developed and maintained by [Stape Team](https://stape.io/) under the Apache 2.0 license.
