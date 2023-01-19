@@ -14,7 +14,11 @@ ___INFO___
   "version": 1,
   "securityGroups": [],
   "displayName": "ActiveCampaign",
-  "categories": ["ANALYTICS", "CONVERSIONS", "MARKETING"],
+  "categories": [
+    "ANALYTICS",
+    "CONVERSIONS",
+    "MARKETING"
+  ],
   "brand": {
     "id": "brand_dummy",
     "displayName": "Stape",
@@ -241,16 +245,18 @@ ___SANDBOXED_JS_FOR_SERVER___
 const sendHttpRequest = require('sendHttpRequest');
 const encodeUriComponent = require('encodeUriComponent');
 const JSON = require('JSON');
-
 const logToConsole = require('logToConsole');
 const getContainerVersion = require('getContainerVersion');
+const getRequestHeader = require('getRequestHeader');
+
 const containerVersion = getContainerVersion();
 const isDebug = containerVersion.debugMode;
+const traceId = isDebug ? getRequestHeader('trace-id') : undefined;
 
 
 if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContactTrackEvent') {
   let url = 'https://' + encodeUriComponent(data.apiUrl.replace('http://', '').replace('https://', '')) + '/api/3/contact/sync';
-
+  let method = 'POST';
   let bodyData = {
     "contact": {
       "email": data.email,
@@ -271,7 +277,14 @@ if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContac
   }
 
   if (isDebug) {
-    logToConsole('Activecampaign createOrUpdateContact data: ', bodyData);
+    logToConsole(JSON.stringify({
+      'Name': 'ActiveCampaign',
+      'Type': 'Request',
+      'TraceId': traceId,
+      'RequestMethod': method,
+      'RequestUrl': url,
+      'RequestBody': bodyData,
+    }));
   }
 
   sendHttpRequest(url, (statusCode, headers, body) => {
@@ -284,7 +297,7 @@ if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContac
     } else {
       data.gtmOnFailure();
     }
-  }, {headers: {'Api-Token': data.apiKey}, method: 'POST', timeout: 3500}, JSON.stringify(bodyData));
+  }, {headers: {'Api-Token': data.apiKey}, method: method, timeout: 3500}, JSON.stringify(bodyData));
 } else {
   sendEventRequest();
 }
@@ -292,6 +305,8 @@ if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContac
 
 function sendEventRequest()
 {
+  let url = 'https://trackcmp.net/event';
+  let method = 'POST';
   let bodyData = 'actid='+encodeUriComponent(data.actid)+'&key='+encodeUriComponent(data.eventKey)+'&event='+encodeUriComponent(data.event)+'&visit='+encodeUriComponent('{"email":"'+data.email+'"}');
 
   if (data.eventdata) {
@@ -299,16 +314,23 @@ function sendEventRequest()
   }
 
   if (isDebug) {
-    logToConsole('Activecampaign trackEvent data: ', bodyData);
+    logToConsole(JSON.stringify({
+      'Name': 'ActiveCampaign',
+      'Type': 'Request',
+      'TraceId': traceId,
+      'RequestMethod': method,
+      'RequestUrl': url,
+      'RequestBody': bodyData,
+    }));
   }
 
-  sendHttpRequest('https://trackcmp.net/event', (statusCode, headers, body) => {
+  sendHttpRequest(url, (statusCode, headers, body) => {
     if (statusCode >= 200 && statusCode < 300) {
       data.gtmOnSuccess();
     } else {
       data.gtmOnFailure();
     }
-  }, {headers: {'content-type': 'application/x-www-form-urlencoded'}, method: 'POST', timeout: 3500}, bodyData);
+  }, {headers: {'content-type': 'application/x-www-form-urlencoded'}, method: method, timeout: 3500}, bodyData);
 }
 
 
@@ -363,6 +385,71 @@ ___SERVER_PERMISSIONS___
       "isEditedByUser": true
     },
     "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "read_request",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "headerWhitelist",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "headerName"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "trace-id"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "key": "headersAllowed",
+          "value": {
+            "type": 8,
+            "boolean": true
+          }
+        },
+        {
+          "key": "requestAccess",
+          "value": {
+            "type": 1,
+            "string": "specific"
+          }
+        },
+        {
+          "key": "headerAccess",
+          "value": {
+            "type": 1,
+            "string": "specific"
+          }
+        },
+        {
+          "key": "queryParameterAccess",
+          "value": {
+            "type": 1,
+            "string": "any"
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
   }
 ]
 
@@ -375,3 +462,5 @@ scenarios: []
 ___NOTES___
 
 Created on 05/04/2021, 09:02:35
+
+
