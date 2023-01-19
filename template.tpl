@@ -248,6 +248,7 @@ const JSON = require('JSON');
 const logToConsole = require('logToConsole');
 const getContainerVersion = require('getContainerVersion');
 const getRequestHeader = require('getRequestHeader');
+const getType = require('getType');
 
 const containerVersion = getContainerVersion();
 const isDebug = containerVersion.debugMode;
@@ -270,7 +271,10 @@ if (
     },
   };
 
-  const fieldValues = (data.fieldValues || []).filter((item) => !!item.value);
+  const fieldValues = (data.fieldValues || []).filter((item) => {
+    const valueType = getType(item.value);
+    return valueType !== 'undefined' && valueType !== 'null';
+  });
 
   if (fieldValues.length) {
     bodyData.contact.fieldValues = fieldValues;
