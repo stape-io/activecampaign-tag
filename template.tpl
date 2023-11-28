@@ -236,6 +236,34 @@ ___TEMPLATE_PARAMETERS___
         "type": "EQUALS"
       }
     ]
+  },
+  {
+    "type": "GROUP",
+    "name": "logsGroup",
+    "displayName": "Logs Settings",
+    "groupStyle": "ZIPPY_CLOSED",
+    "subParams": [
+      {
+        "type": "RADIO",
+        "name": "logType",
+        "displayName": "",
+        "radioItems": [
+          {
+            "value": "no",
+            "displayValue": "Do not log"
+          },
+          {
+            "value": "debug",
+            "displayValue": "Log to console during debug and preview"
+          },
+          {
+            "value": "always",
+            "displayValue": "Always log to console"
+          }
+        ],
+        "simpleValueType": true
+      }
+    ]
   }
 ]
 
@@ -250,9 +278,8 @@ const getContainerVersion = require('getContainerVersion');
 const getRequestHeader = require('getRequestHeader');
 const getType = require('getType');
 
-const containerVersion = getContainerVersion();
-const isDebug = containerVersion.debugMode;
-const traceId = isDebug ? getRequestHeader('trace-id') : undefined;
+const isLoggingEnabled = determinateIsLoggingEnabled();
+const traceId = isLoggingEnabled ? getRequestHeader('trace-id') : undefined;
 
 if (
   data.type === 'createOrUpdateContact' ||
@@ -292,11 +319,12 @@ if (
     bodyData.contact.phone = data.phone;
   }
 
-  if (isDebug) {
+  if (isLoggingEnabled) {
     logToConsole(
       JSON.stringify({
         Name: 'ActiveCampaign',
         Type: 'Request',
+        EventName: 'CreateOrUpdateContact',
         TraceId: traceId,
         RequestMethod: method,
         RequestUrl: url,
@@ -308,6 +336,19 @@ if (
   sendHttpRequest(
     url,
     (statusCode, headers, body) => {
+      if (isLoggingEnabled) {
+        logToConsole(
+          JSON.stringify({
+            Name: 'ActiveCampaign',
+            Type: 'Response',
+            EventName: 'CreateOrUpdateContact',
+            TraceId: traceId,
+            ResponseStatusCode: statusCode,
+            ResponseHeaders: headers,
+            ResponseBody: body,
+          })
+        );
+      }
       if (statusCode >= 200 && statusCode < 300) {
         if (data.type === 'createOrUpdateContactTrackEvent') {
           sendEventRequest();
@@ -342,11 +383,12 @@ function sendEventRequest() {
     bodyData = bodyData + '&eventdata=' + encodeUriComponent(data.eventdata);
   }
 
-  if (isDebug) {
+  if (isLoggingEnabled) {
     logToConsole(
       JSON.stringify({
         Name: 'ActiveCampaign',
         Type: 'Request',
+        EventName: data.event,
         TraceId: traceId,
         RequestMethod: method,
         RequestUrl: url,
@@ -358,6 +400,19 @@ function sendEventRequest() {
   sendHttpRequest(
     url,
     (statusCode, headers, body) => {
+      if (isLoggingEnabled) {
+        logToConsole(
+          JSON.stringify({
+            Name: 'ActiveCampaign',
+            Type: 'Response',
+            EventName: data.event,
+            TraceId: traceId,
+            ResponseStatusCode: statusCode,
+            ResponseHeaders: headers,
+            ResponseBody: body,
+          })
+        );
+      }
       if (statusCode >= 200 && statusCode < 300) {
         data.gtmOnSuccess();
       } else {
@@ -371,6 +426,28 @@ function sendEventRequest() {
     },
     bodyData
   );
+}
+
+function determinateIsLoggingEnabled() {
+  const containerVersion = getContainerVersion();
+  const isDebug = !!(
+    containerVersion &&
+    (containerVersion.debugMode || containerVersion.previewMode)
+  );
+
+  if (!data.logType) {
+    return isDebug;
+  }
+
+  if (data.logType === 'no') {
+    return false;
+  }
+
+  if (data.logType === 'debug') {
+    return isDebug;
+  }
+
+  return data.logType === 'always';
 }
 
 
