@@ -1,5 +1,7 @@
 homepage: "https://stape.io/"
 versions:
+  - sha: e336426ce31f3d27052425d0902b448b481dfb86
+    changeNotes: Added logs settings section.
   - sha: 74534de104e12bf4564534a4c11ae5bb1e692bb6
     changeNotes: Fix allow zero field values
   - sha: ed59d1abf051186b4ef545f245432d60268fe1a7
