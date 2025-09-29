@@ -5,25 +5,34 @@ const logToConsole = require('logToConsole');
 const getContainerVersion = require('getContainerVersion');
 const getRequestHeader = require('getRequestHeader');
 const getType = require('getType');
+const getAllEventData = require('getAllEventData');
+const BigQuery = require('BigQuery');
+const getTimestampMillis = require('getTimestampMillis');
 
-const isLoggingEnabled = determinateIsLoggingEnabled();
-const traceId = isLoggingEnabled ? getRequestHeader('trace-id') : undefined;
+/*==============================================================================
+==============================================================================*/
 
-if (
-  data.type === 'createOrUpdateContact' ||
-  data.type === 'createOrUpdateContactTrackEvent'
-) {
-  let url =
+const eventData = getAllEventData();
+
+if (!isConsentGivenOrNotRequired(data, eventData)) {
+  return data.gtmOnSuccess();
+}
+
+const url = getUrl(eventData);
+if (url && url.lastIndexOf('https://gtm-msr.appspot.com/', 0) === 0) {
+  return data.gtmOnSuccess();
+}
+
+if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContactTrackEvent') {
+  const url =
     'https://' +
-    encodeUriComponent(
-      data.apiUrl.replace('http://', '').replace('https://', '')
-    ) +
+    encodeUriComponent(data.apiUrl.replace('http://', '').replace('https://', '')) +
     '/api/3/contact/sync';
-  let method = 'POST';
-  let bodyData = {
+  const method = 'POST';
+  const bodyData = {
     contact: {
-      email: data.email,
-    },
+      email: data.email
+    }
   };
 
   const fieldValues = (data.fieldValues || []).filter((item) => {
@@ -47,36 +56,27 @@ if (
     bodyData.contact.phone = data.phone;
   }
 
-  if (isLoggingEnabled) {
-    logToConsole(
-      JSON.stringify({
-        Name: 'ActiveCampaign',
-        Type: 'Request',
-        EventName: 'CreateOrUpdateContact',
-        TraceId: traceId,
-        RequestMethod: method,
-        RequestUrl: url,
-        RequestBody: bodyData,
-      })
-    );
-  }
+  log({
+    Name: 'ActiveCampaign',
+    Type: 'Request',
+    EventName: 'CreateOrUpdateContact',
+    RequestMethod: method,
+    RequestUrl: url,
+    RequestBody: bodyData
+  });
 
   sendHttpRequest(
     url,
     (statusCode, headers, body) => {
-      if (isLoggingEnabled) {
-        logToConsole(
-          JSON.stringify({
-            Name: 'ActiveCampaign',
-            Type: 'Response',
-            EventName: 'CreateOrUpdateContact',
-            TraceId: traceId,
-            ResponseStatusCode: statusCode,
-            ResponseHeaders: headers,
-            ResponseBody: body,
-          })
-        );
-      }
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Response',
+        EventName: 'CreateOrUpdateContact',
+        ResponseStatusCode: statusCode,
+        ResponseHeaders: headers,
+        ResponseBody: body
+      });
+
       if (statusCode >= 200 && statusCode < 300) {
         if (data.type === 'createOrUpdateContactTrackEvent') {
           sendEventRequest();
@@ -94,9 +94,13 @@ if (
   sendEventRequest();
 }
 
+/*==============================================================================
+  Vendor related functions
+==============================================================================*/
+
 function sendEventRequest() {
-  let url = 'https://trackcmp.net/event';
-  let method = 'POST';
+  const url = 'https://trackcmp.net/event';
+  const method = 'POST';
   let bodyData =
     'actid=' +
     encodeUriComponent(data.actid) +
@@ -111,36 +115,27 @@ function sendEventRequest() {
     bodyData = bodyData + '&eventdata=' + encodeUriComponent(data.eventdata);
   }
 
-  if (isLoggingEnabled) {
-    logToConsole(
-      JSON.stringify({
-        Name: 'ActiveCampaign',
-        Type: 'Request',
-        EventName: data.event,
-        TraceId: traceId,
-        RequestMethod: method,
-        RequestUrl: url,
-        RequestBody: bodyData,
-      })
-    );
-  }
+  log({
+    Name: 'ActiveCampaign',
+    Type: 'Request',
+    EventName: data.event,
+    RequestMethod: method,
+    RequestUrl: url,
+    RequestBody: bodyData
+  });
 
   sendHttpRequest(
     url,
     (statusCode, headers, body) => {
-      if (isLoggingEnabled) {
-        logToConsole(
-          JSON.stringify({
-            Name: 'ActiveCampaign',
-            Type: 'Response',
-            EventName: data.event,
-            TraceId: traceId,
-            ResponseStatusCode: statusCode,
-            ResponseHeaders: headers,
-            ResponseBody: body,
-          })
-        );
-      }
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Response',
+        EventName: data.event,
+        ResponseStatusCode: statusCode,
+        ResponseHeaders: headers,
+        ResponseBody: body
+      });
+
       if (statusCode >= 200 && statusCode < 300) {
         data.gtmOnSuccess();
       } else {
@@ -150,10 +145,86 @@ function sendEventRequest() {
     {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       method: method,
-      timeout: 3500,
+      timeout: 3500
     },
     bodyData
   );
+}
+
+/*==============================================================================
+  Helpers
+==============================================================================*/
+
+function getUrl(eventData) {
+  return eventData.page_location || eventData.page_referrer || getRequestHeader('referer');
+}
+
+function isConsentGivenOrNotRequired(data, eventData) {
+  if (data.adStorageConsent !== 'required') return true;
+  if (eventData.consent_state) return !!eventData.consent_state.ad_storage;
+  const xGaGcs = eventData['x-ga-gcs'] || ''; // x-ga-gcs is a string like "G110"
+  return xGaGcs[2] === '1';
+}
+
+function log(rawDataToLog) {
+  const logDestinationsHandlers = {};
+  if (determinateIsLoggingEnabled()) logDestinationsHandlers.console = logConsole;
+  if (determinateIsLoggingEnabledForBigQuery()) logDestinationsHandlers.bigQuery = logToBigQuery;
+
+  rawDataToLog.TraceId = getRequestHeader('trace-id');
+
+  const keyMappings = {
+    // No transformation for Console is needed.
+    bigQuery: {
+      Name: 'tag_name',
+      Type: 'type',
+      TraceId: 'trace_id',
+      EventName: 'event_name',
+      RequestMethod: 'request_method',
+      RequestUrl: 'request_url',
+      RequestBody: 'request_body',
+      ResponseStatusCode: 'response_status_code',
+      ResponseHeaders: 'response_headers',
+      ResponseBody: 'response_body'
+    }
+  };
+
+  for (const logDestination in logDestinationsHandlers) {
+    const handler = logDestinationsHandlers[logDestination];
+    if (!handler) continue;
+
+    const mapping = keyMappings[logDestination];
+    const dataToLog = mapping ? {} : rawDataToLog;
+
+    if (mapping) {
+      for (const key in rawDataToLog) {
+        const mappedKey = mapping[key] || key;
+        dataToLog[mappedKey] = rawDataToLog[key];
+      }
+    }
+
+    handler(dataToLog);
+  }
+}
+
+function logConsole(dataToLog) {
+  logToConsole(JSON.stringify(dataToLog));
+}
+
+function logToBigQuery(dataToLog) {
+  const connectionInfo = {
+    projectId: data.logBigQueryProjectId,
+    datasetId: data.logBigQueryDatasetId,
+    tableId: data.logBigQueryTableId
+  };
+
+  dataToLog.timestamp = getTimestampMillis();
+
+  ['request_body', 'response_headers', 'response_body'].forEach((p) => {
+    dataToLog[p] = JSON.stringify(dataToLog[p]);
+  });
+
+  BigQuery.insert(connectionInfo, [dataToLog], { ignoreUnknownValues: true });
 }
 
 function determinateIsLoggingEnabled() {
@@ -176,4 +247,9 @@ function determinateIsLoggingEnabled() {
   }
 
   return data.logType === 'always';
+}
+
+function determinateIsLoggingEnabledForBigQuery() {
+  if (data.bigQueryLogType === 'no') return false;
+  return data.bigQueryLogType === 'always';
 }

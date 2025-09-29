@@ -1,21 +1,30 @@
 # ActiveCampaign tag for Google Tag Manager Server Side
 
-ActiveCampaign tag for the Google Tag Manager server container allows you to integrate your websites with the ActiveCampaign.
-This tag will communicate with ActiveCampaign API and send event and user data to your ActiveCampaign account.
+The **ActiveCampaign tag for the Google Tag Manager server container** allows you to integrate your website with ActiveCampaign by sending event and user data directly to the ActiveCampaign API.
 
-The setup is done inside the Google Tag Manager server container interface. 
+This server-to-server integration helps improve data accuracy and security by communicating directly with ActiveCampaign from your server, bypassing client-side tracking limitations.
 
+## Features
 
-**Tag allows to:**
+The tag supports three main actions:
 
 - Track event
 - Create or update contact
 - Create or update contact and track event
 
-## How to use ActiveCampaign tag for Google Tag Manager Server container
+## How to use
 
-- [How to integrate ActiveCampaign with the website using Google Tag Manager Server container](https://stape.io/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container/)
+1.  Add the **ActiveCampaign Tag** to your GTM Server container from the Template Gallery.
+2.  Create a new tag and select the **Action** you want to perform (e.g., "Create or update contact and track event").
+3.  Provide the necessary information depending on the action being tracked (**ActiveCampaign API URL**, **API Key**, **Event Key**, **Actid** etc.).
+4.  Map the required fields, such as **Email** for contacts and **Event Name** for events.
+5.  Configure additional user or event data as needed.
+6.  Set up a trigger to fire the tag on the relevant server-side event (e.g., a `purchase` or `generate_lead` event).
+
+## Useful Resources
+
+- [How to integrate ActiveCampaign with your website using a server GTM container](https://stape.io/blog/how-to-integrate-activecampaign-with-the-website-using-google-tag-manager-server-container)
 
 ## Open Source
 
-ActiveCampaign Tag for GTM Server Side is developed and maintained by [Stape Team](https://stape.io/) under the Apache 2.0 license.
+The **ActiveCampaign Tag for GTM Server Side** is developed and maintained by [Stape Team](https://stape.io/) under the Apache 2.0 license.
