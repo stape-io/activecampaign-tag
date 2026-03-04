@@ -11,6 +11,7 @@ The tag supports three main actions:
 - Track event
 - Create or update contact
 - Create or update contact and track event
+- Add contact to a list
 
 ## How to use
 
