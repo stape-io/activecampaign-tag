@@ -1,13 +1,15 @@
-﻿const sendHttpRequest = require('sendHttpRequest');
+const BigQuery = require('BigQuery');
 const encodeUriComponent = require('encodeUriComponent');
-const JSON = require('JSON');
-const logToConsole = require('logToConsole');
+const getAllEventData = require('getAllEventData');
 const getContainerVersion = require('getContainerVersion');
 const getRequestHeader = require('getRequestHeader');
-const getType = require('getType');
-const getAllEventData = require('getAllEventData');
-const BigQuery = require('BigQuery');
 const getTimestampMillis = require('getTimestampMillis');
+const getType = require('getType');
+const JSON = require('JSON');
+const logToConsole = require('logToConsole');
+const makeString = require('makeString');
+const Promise = require('Promise');
+const sendHttpRequest = require('sendHttpRequest');
 
 /*==============================================================================
 ==============================================================================*/
@@ -24,11 +26,47 @@ if (url && url.lastIndexOf('https://gtm-msr.appspot.com/', 0) === 0) {
 }
 
 if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContactTrackEvent') {
-  const url =
-    'https://' +
-    encodeUriComponent(data.apiUrl.replace('http://', '').replace('https://', '')) +
-    '/api/3/contact/sync';
-  const method = 'POST';
+  createOrUpdateContactRequest()
+    .then((result) => {
+      if (!result.success) return [result];
+
+      const actions = [];
+      const responseBody = JSON.parse(result.body || '{}');
+
+      if (
+        data.updateContactListStatus &&
+        responseBody &&
+        responseBody.contact &&
+        responseBody.contact.id
+      ) {
+        actions.push(updateContactListStatus(responseBody.contact.id));
+      }
+
+      if (data.type === 'createOrUpdateContactTrackEvent') {
+        actions.push(sendEventRequest());
+      }
+
+      return actions.length > 0 ? Promise.all(actions) : [{ success: true }];
+    })
+    .then((results) => {
+      return results.every((result) => result.success) ? data.gtmOnSuccess() : data.gtmOnFailure();
+    })
+    .catch(() => {
+      return data.gtmOnFailure();
+    });
+} else if (data.type === 'trackEvent') {
+  sendEventRequest()
+    .then((result) => (result.success ? data.gtmOnSuccess() : data.gtmOnFailure()))
+    .catch(() => data.gtmOnFailure());
+}
+
+/*==============================================================================
+  Vendor related functions
+==============================================================================*/
+
+function createOrUpdateContactRequest() {
+  const createOrUpdateContactEndpoint = generateRequestUrl(data, 'createOrUpdateContact');
+  const requestOptions = generateRequestOptions(data, 'createOrUpdateContact');
   const bodyData = {
     contact: {
       email: data.email
@@ -40,67 +78,102 @@ if (data.type === 'createOrUpdateContact' || data.type === 'createOrUpdateContac
     return valueType !== 'undefined' && valueType !== 'null';
   });
 
-  if (fieldValues.length) {
-    bodyData.contact.fieldValues = fieldValues;
-  }
-
-  if (data.firstName) {
-    bodyData.contact.firstName = data.firstName;
-  }
-
-  if (data.lastName) {
-    bodyData.contact.lastName = data.lastName;
-  }
-
-  if (data.phone) {
-    bodyData.contact.phone = data.phone;
-  }
+  if (fieldValues.length) bodyData.contact.fieldValues = fieldValues;
+  if (data.firstName) bodyData.contact.firstName = data.firstName;
+  if (data.lastName) bodyData.contact.lastName = data.lastName;
+  if (data.phone) bodyData.contact.phone = data.phone;
 
   log({
     Name: 'ActiveCampaign',
     Type: 'Request',
     EventName: 'CreateOrUpdateContact',
-    RequestMethod: method,
+    RequestMethod: requestOptions.method,
     RequestUrl: url,
     RequestBody: bodyData
   });
 
-  sendHttpRequest(
-    url,
-    (statusCode, headers, body) => {
+  return sendHttpRequest(createOrUpdateContactEndpoint, requestOptions, JSON.stringify(bodyData))
+    .then((result) => {
       log({
         Name: 'ActiveCampaign',
         Type: 'Response',
         EventName: 'CreateOrUpdateContact',
-        ResponseStatusCode: statusCode,
-        ResponseHeaders: headers,
-        ResponseBody: body
+        ResponseStatusCode: result.statusCode,
+        ResponseHeaders: result.headers,
+        ResponseBody: result.body
       });
 
-      if (statusCode >= 200 && statusCode < 300) {
-        if (data.type === 'createOrUpdateContactTrackEvent') {
-          sendEventRequest();
-        } else {
-          data.gtmOnSuccess();
-        }
+      if (result.statusCode >= 200 && result.statusCode < 300) {
+        return { success: true, body: result.body };
       } else {
-        data.gtmOnFailure();
+        return { success: false };
       }
-    },
-    { headers: { 'Api-Token': data.apiKey }, method: method, timeout: 3500 },
-    JSON.stringify(bodyData)
-  );
-} else {
-  sendEventRequest();
+    })
+    .catch(() => {
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Error',
+        EventName: 'CreateOrUpdateContact',
+        Message: 'Error creating or updating contact.'
+      });
+      return { success: false };
+    });
 }
 
-/*==============================================================================
-  Vendor related functions
-==============================================================================*/
+function updateContactListStatus(contactId) {
+  if (!contactId) return Promise.create((_, reject) => reject({ success: false }));
+
+  const updateContactListStatusEndpoint = generateRequestUrl(data, 'updateContactListStatus');
+  const requestOptions = generateRequestOptions(data, 'updateContactListStatus');
+  const bodyData = {
+    contactList: {
+      list: makeString(data.listId),
+      contact: makeString(contactId),
+      status: data.contactStatus === 'unsubscribe' ? '2' : '1',
+      sourceid: data.contactStatus === 'resubscribe' ? '4' : '0'
+    }
+  };
+
+  log({
+    Name: 'ActiveCampaign',
+    Type: 'Request',
+    EventName: 'UpdateContactListStatus',
+    RequestMethod: requestOptions.method,
+    RequestUrl: updateContactListStatusEndpoint,
+    RequestBody: bodyData
+  });
+
+  return sendHttpRequest(updateContactListStatusEndpoint, requestOptions, JSON.stringify(bodyData))
+    .then((result) => {
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Response',
+        EventName: 'UpdateContactListStatus',
+        ResponseStatusCode: result.statusCode,
+        ResponseHeaders: result.headers,
+        ResponseBody: result.body
+      });
+
+      if (result.statusCode >= 200 && result.statusCode < 300) {
+        return { success: true };
+      } else {
+        return { success: false };
+      }
+    })
+    .catch(() => {
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Error',
+        EventName: 'UpdateContactListStatus',
+        Message: 'Error updating contact list status.'
+      });
+      return { success: false };
+    });
+}
 
 function sendEventRequest() {
-  const url = 'https://trackcmp.net/event';
-  const method = 'POST';
+  const trackEventEndpoint = generateRequestUrl(data, 'trackEvent');
+  const requestOptions = generateRequestOptions(data, 'trackEvent');
   let bodyData =
     'actid=' +
     encodeUriComponent(data.actid) +
@@ -119,36 +192,61 @@ function sendEventRequest() {
     Name: 'ActiveCampaign',
     Type: 'Request',
     EventName: data.event,
-    RequestMethod: method,
+    RequestMethod: requestOptions.method,
     RequestUrl: url,
     RequestBody: bodyData
   });
 
-  sendHttpRequest(
-    url,
-    (statusCode, headers, body) => {
+  return sendHttpRequest(trackEventEndpoint, requestOptions, bodyData)
+    .then((result) => {
       log({
         Name: 'ActiveCampaign',
         Type: 'Response',
         EventName: data.event,
-        ResponseStatusCode: statusCode,
-        ResponseHeaders: headers,
-        ResponseBody: body
+        ResponseStatusCode: result.statusCode,
+        ResponseHeaders: result.headers,
+        ResponseBody: result.body
       });
 
-      if (statusCode >= 200 && statusCode < 300) {
-        data.gtmOnSuccess();
+      if (result.statusCode >= 200 && result.statusCode < 300) {
+        return { success: true };
       } else {
-        data.gtmOnFailure();
+        return { success: false };
       }
-    },
-    {
+    })
+    .catch(() => {
+      log({
+        Name: 'ActiveCampaign',
+        Type: 'Error',
+        EventName: data.event,
+        Message: 'Error sending event.'
+      });
+      return { success: false };
+    });
+}
+
+function generateRequestUrl(data, requestType) {
+  if (requestType === 'trackEvent') return 'https://trackcmp.net/event';
+
+  const baseUrl =
+    'https://' +
+    encodeUriComponent(data.apiUrl.replace('http://', '').replace('https://', '')) +
+    '/api/3';
+
+  if (requestType === 'createOrUpdateContact') return baseUrl + '/contact/sync';
+  if (requestType === 'updateContactListStatus') return baseUrl + '/contactLists';
+}
+
+function generateRequestOptions(data, requestType) {
+  const method = 'POST';
+  if (requestType === 'trackEvent') {
+    return {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      method: method,
-      timeout: 3500
-    },
-    bodyData
-  );
+      method: method
+    };
+  }
+
+  return { headers: { 'Api-Token': data.apiKey }, method: method };
 }
 
 /*==============================================================================

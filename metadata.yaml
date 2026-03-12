@@ -1,6 +1,8 @@
 homepage: 'https://stape.io/'
 documentation: 'https://github.com/stape-io/activecampaign-tag'
 versions:
+  - sha: 564f6a942d5cc01d371a7cfa16d8e1e5a66ea1b8
+    changeNotes: Added support subscribe, unsubscribe and resubscribe contact to a list.
   - sha: a9a62e14e2376d23c22c37359abe190c8a165ac0
     changeNotes: Improved help text of Custom Fields section. Added BigQuery logging support.
   - sha: e336426ce31f3d27052425d0902b448b481dfb86
